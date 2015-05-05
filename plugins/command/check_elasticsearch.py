@@ -79,6 +79,9 @@ class ElasticSearchCheck(NagiosCheck):
                         "The ElasticSearch API should be listening "
                         "here.  Defaults to 9200.")
 
+        self.add_option('r', 'routing_allocation', None, desc="Check if routing"
+                        " allocation is enabled")
+
     def check(self, opts, args):
         host = opts.host or "localhost"
         port = int(opts.port or '9200')
@@ -123,6 +126,17 @@ class ElasticSearchCheck(NagiosCheck):
         # where all shards are living at this point in time.
         es_state = get_json(r'http://%s:%d/_cluster/state' %
                             (host, port))
+
+        if opts.r:
+            es_settings = get_json(r'http://%s:%d/_cluster/settings' %
+                                   (host, port))
+            try:
+                if es_settings['transient']['cluster']['routing']['allocation']['enable'] == 'none':
+                    raise Status('critical',
+                                 ("Routing allocation disabled for cluster",))
+            except KeyError as e:
+                # this means routing allocation is not set and everything is ok
+                pass
 
         # Request a bunch of useful numbers that we export as perfdata.
         # Details like the number of get, search, and indexing
